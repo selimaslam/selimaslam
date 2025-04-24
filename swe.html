@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heartful Reaching Car Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(to bottom, #ffccf2, #f6c3ff);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            background-color: #fff;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        #road {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                #555 0px,
+                #555 30px,
+                #fff 30px,
+                #fff 60px
+            );
+            background-size: 100% 60px;
+            animation: roadMove 2s linear infinite;
+        }
+        
+        #car {
+            position: absolute;
+            width: 60px;
+            height: 100px;
+            bottom: 50px;
+            left: 170px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 100"><rect x="10" y="30" width="40" height="50" rx="5" fill="%23ff6b6b"/><rect x="5" y="70" width="50" height="20" rx="5" fill="%23ff8e8e"/><circle cx="15" cy="90" r="10" fill="%23333"/><circle cx="45" cy="90" r="10" fill="%23333"/><rect x="15" y="15" width="30" height="20" rx="5" fill="%23ffccf2"/></svg>');
+            background-size: contain;
+            z-index: 10;
+        }
+        
+        .heart {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%23ff0000" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
+            background-size: contain;
+            z-index: 5;
+        }
+        
+        #score-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff6b6b;
+            z-index: 20;
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+            color: white;
+        }
+        
+        #game-over h1 {
+            font-size: 36px;
+            color: #ff6b6b;
+            margin-bottom: 20px;
+        }
+        
+        #restart-btn {
+            padding: 10px 20px;
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        #restart-btn:hover {
+            background-color: #ff8e8e;
+            transform: scale(1.05);
+        }
+        
+        @keyframes roadMove {
+            from {
+                background-position: 0 0;
+            }
+            to {
+                background-position: 0 60px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="road"></div>
+        <div id="car"></div>
+        <div id="score-container">Hearts: <span id="score">0</span></div>
+        <div id="game-over">
+            <h1>Game Over!</h1>
+            <p>Your final score: <span id="final-score">0</span></p>
+            <button id="restart-btn">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const car = document.getElementById('car');
+        const gameContainer = document.getElementById('game-container');
+        const road = document.getElementById('road');
+        const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreElement = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+        
+        let carPosition = 170;
+        let score = 0;
+        let gameSpeed = 2;
+        let gameIsOver = false;
+        let hearts = [];
+        let animationId;
+        
+        // Initialize game
+        function initGame() {
+            score = 0;
+            gameSpeed = 2;
+            gameIsOver = false;
+            scoreElement.textContent = score;
+            carPosition = 170;
+            car.style.left = carPosition + 'px';
+            
+            // Clear all hearts
+            hearts.forEach(heart => {
+                if (heart.element && heart.element.parentNode) {
+                    heart.element.parentNode.removeChild(heart.element);
+                }
+            });
+            hearts = [];
+            
+            gameOverScreen.style.display = 'none';
+            road.style.animationDuration = gameSpeed + 's';
+            
+            // Start game loop
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            gameLoop();
+        }
+        
+        // Handle keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (gameIsOver) return;
+            
+            if (e.key === 'ArrowLeft' && carPosition > 20) {
+                carPosition -= 20;
+                car.style.left = carPosition + 'px';
+            } else if (e.key === 'ArrowRight' && carPosition < 320) {
+                carPosition += 20;
+                car.style.left = carPosition + 'px';
+            }
+        });
+        
+        // Handle touch controls for mobile
+        let touchStartX = 0;
+        
+        gameContainer.addEventListener('touchstart', (e) => {
+            if (gameIsOver) return;
+            touchStartX = e.touches[0].clientX;
+        });
+        
+        gameContainer.addEventListener('touchmove', (e) => {
+            if (gameIsOver) return;
+            e.preventDefault();
+            const touchX = e.touches[0].clientX;
+            const diff = touchX - touchStartX;
+            
+            if (diff > 30 && carPosition < 320) { // Swipe right
+                carPosition += 20;
+                car.style.left = carPosition + 'px';
+                touchStartX = touchX;
+            } else if (diff < -30 && carPosition > 20) { // Swipe left
+                carPosition -= 20;
+                car.style.left = carPosition + 'px';
+                touchStartX = touchX;
+            }
+        });
+        
+        // Create a new heart
+        function createHeart() {
+            if (Math.random() > 0.02) return; // Control frequency of heart creation
+            
+            const heart = document.createElement('div');
+            heart.className = 'heart';
+            
+            const leftPosition = Math.random() * 340 + 20;
+            heart.style.left = leftPosition + 'px';
+            heart.style.top = '-30px';
+            
+            gameContainer.appendChild(heart);
+            
+            hearts.push({
+                element: heart,
+                x: leftPosition,
+                y: -30,
+                speed: 3 + Math.random() * 2
+            });
+        }
+        
+        // Update heart positions
+        function updateHearts() {
+            for (let i = hearts.length - 1; i >= 0; i--) {
+                const heart = hearts[i];
+                heart.y += heart.speed;
+                heart.element.style.top = heart.y + 'px';
+                
+                // Check if heart is collected by car
+                if (
+                    heart.y >= 450 && 
+                    heart.y <= 550 && 
+                    heart.x >= carPosition - 30 && 
+                    heart.x <= carPosition + 60
+                ) {
+                    // Collect heart
+                    gameContainer.removeChild(heart.element);
+                    hearts.splice(i, 1);
+                    score++;
+                    scoreElement.textContent = score;
+                    
+                    // Increase game speed slightly every 5 hearts
+                    if (score % 5 === 0) {
+                        gameSpeed = Math.max(0.5, gameSpeed * 0.95);
+                        road.style.animationDuration = gameSpeed + 's';
+                    }
+                    
+                    continue;
+                }
+                
+                // Remove heart if it goes off screen
+                if (heart.y > 600) {
+                    gameContainer.removeChild(heart.element);
+                    hearts.splice(i, 1);
+                }
+            }
+        }
+        
+        // Game over function
+        function gameOver() {
+            gameIsOver = true;
+            finalScoreElement.textContent = score;
+            gameOverScreen.style.display = 'flex';
+            road.style.animationPlayState = 'paused';
+        }
+        
+        // Main game loop
+        function gameLoop() {
+            if (gameIsOver) return;
+            
+            createHeart();
+            updateHearts();
+            
+            // Check for game over condition (if you want to add obstacles later)
+            // Currently the game only ends when you close it
+            
+            animationId = requestAnimationFrame(gameLoop);
+        }
+        
+        // Restart button event
+        restartBtn.addEventListener('click', initGame);
+        
+        // Start the game
+        initGame();
+    </script>
+</body>
+</html>
